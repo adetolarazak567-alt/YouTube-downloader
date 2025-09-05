@@ -1,74 +1,38 @@
-from flask import Flask, request, send_file, jsonify, Response
-from yt_dlp import YoutubeDL
-from io import BytesIO
+import os
+from flask import Flask, request, jsonify
+import yt_dlp
 
 app = Flask(__name__)
 
-ydl_opts_info = {
-    'quiet': True,
-    'skip_download': True,
-    'format': 'mp4',
-}
+@app.route('/')
+def home():
+    return "YouTube Downloader API is running!"
 
-ydl_opts_preview = {
-    'quiet': True,
-    'format': 'mp4',
-    'noplaylist': True,
-    'max_filesize': 10_000_000,  # ~10MB preview
-    'outtmpl': '-',               # stream to stdout
-}
-
-ydl_opts_download = {
-    'quiet': True,
-    'format': 'bestvideo+bestaudio/best',
-    'outtmpl': '-',               # stream to stdout
-}
-
-@app.route('/video_info')
-def video_info():
-    url = request.args.get('url')
-    if not url:
-        return jsonify({'error': 'No URL provided'}), 400
+@app.route('/download', methods=['POST'])
+def download_video():
     try:
-        with YoutubeDL(ydl_opts_info) as ydl:
+        data = request.get_json()
+        url = data.get('url')
+        if not url:
+            return jsonify({"error": "No URL provided"}), 400
+
+        ydl_opts = {
+            'format': 'best',
+            'noplaylist': True,
+            'quiet': True,
+            'outtmpl': '%(title)s.%(ext)s'
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-            return jsonify({
-                'thumbnail': info.get('thumbnail'),
-                'title': info.get('title')
-            })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
+            video_url = info.get("url")
+            title = info.get("title")
+            return jsonify({"title": title, "video_url": video_url})
 
-@app.route('/video_preview')
-def video_preview():
-    url = request.args.get('url')
-    if not url:
-        return 'No URL provided', 400
-    try:
-        def generate():
-            ydl_opts = ydl_opts_preview.copy()
-            ydl_opts['outtmpl'] = '-'
-            with YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-        return Response(generate(), mimetype='video/mp4')
     except Exception as e:
-        return str(e), 500
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/download')
-def download():
-    url = request.args.get('url')
-    if not url:
-        return 'No URL provided', 400
-    try:
-        def generate():
-            ydl_opts = ydl_opts_download.copy()
-            ydl_opts['outtmpl'] = '-'
-            with YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-        return Response(generate(), mimetype='video/mp4',
-                        headers={"Content-Disposition": "attachment; filename=video.mp4"})
-    except Exception as e:
-        return str(e), 500
-
-if __name__ == '__main__':
-    app.run(debug=True, threaded=True)
+if __name__ == "__main__":
+    # Render provides the PORT environment variable
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
