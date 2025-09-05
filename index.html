@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube Video Downloader</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f9f9f9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 50px 20px;
+}
+h1 {
+  color: #FF0000;
+  font-weight: bold;
+  margin-bottom: 30px;
+}
+.input-container {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  margin-bottom: 15px;
+}
+input {
+  width: 100%;
+  padding: 10px 40px 10px 15px;
+  font-size: 16px;
+  border-radius: 25px;
+  border: 1px solid #ccc;
+  outline: none;
+}
+.clear-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 20px;
+  display: none;
+  color: #999;
+}
+.fetch-btn {
+  padding: 10px 20px;
+  border: none;
+  background: #FF0000;
+  color: white;
+  border-radius: 25px;
+  cursor: pointer;
+  font-size: 16px;
+}
+.video-preview {
+  margin-top: 30px;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+}
+.video-preview video {
+  width: 100%;
+  max-width: 480px;
+  border-radius: 10px;
+}
+.video-title {
+  margin-top: 10px;
+  font-weight: bold;
+  font-size: 16px;
+  text-align: center;
+  max-width: 480px;
+  word-wrap: break-word;
+}
+.download-btn {
+  margin-top: 15px;
+  padding: 10px 20px;
+  background: #FF0000;
+  color: white;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  font-size: 16px;
+}
+.spinner {
+  margin-top: 20px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #FF0000;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  display: none;
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.error-message {
+  margin-top: 15px;
+  color: red;
+  font-size: 14px;
+}
+</style>
+</head>
+<body>
+
+<h1>YouTube Downloader</h1>
+
+<div class="input-container">
+  <input type="text" id="urlInput" placeholder="Paste YouTube link here..." />
+  <span class="clear-btn" id="clearBtn">&times;</span>
+</div>
+
+<button class="fetch-btn" id="fetchBtn">Fetch Video</button>
+
+<div class="spinner" id="spinner"></div>
+<div class="error-message" id="errorMessage"></div>
+
+<div class="video-preview" id="videoPreview">
+  <video id="videoThumbnail" autoplay muted loop></video>
+  <div class="video-title" id="videoTitle"></div>
+  <button class="download-btn" id="downloadBtn">Download Video</button>
+</div>
+
+<script>
+const urlInput = document.getElementById('urlInput');
+const clearBtn = document.getElementById('clearBtn');
+const fetchBtn = document.getElementById('fetchBtn');
+const videoPreview = document.getElementById('videoPreview');
+const videoThumbnail = document.getElementById('videoThumbnail');
+const videoTitle = document.getElementById('videoTitle');
+const downloadBtn = document.getElementById('downloadBtn');
+const spinner = document.getElementById('spinner');
+const errorMessage = document.getElementById('errorMessage');
+
+// Show/hide clear button dynamically
+urlInput.addEventListener('input', () => {
+  clearBtn.style.display = urlInput.value ? 'block' : 'none';
+});
+
+clearBtn.addEventListener('click', () => {
+  urlInput.value = '';
+  clearBtn.style.display = 'none';
+  videoPreview.style.display = 'none';
+  spinner.style.display = 'none';
+  errorMessage.textContent = '';
+});
+
+// Fetch Video Info
+fetchBtn.addEventListener('click', async () => {
+  const url = urlInput.value.trim();
+  if (!url) return;
+  
+  spinner.style.display = 'block';
+  errorMessage.textContent = '';
+  videoPreview.style.display = 'none';
+
+  try {
+    const res = await fetch(`http://localhost:5000/video_info?url=${encodeURIComponent(url)}`);
+    const data = await res.json();
+    if (data.error) {
+      throw new Error(data.error);
+    }
+    // Set video preview and title
+    videoThumbnail.src = `http://localhost:5000/video_preview?url=${encodeURIComponent(url)}`;
+    videoTitle.textContent = data.title;
+    videoPreview.style.display = 'flex';
+    spinner.style.display = 'none';
+
+    downloadBtn.onclick = () => {
+      window.location.href = `http://localhost:5000/download?url=${encodeURIComponent(url)}`;
+    };
+  } catch (err) {
+    spinner.style.display = 'none';
+    errorMessage.textContent = 'Failed to fetch video. Please check the link.';
+    console.error(err);
+  }
+});
+</script>
+
+</body>
+</html>
