@@ -1,2 +1,5 @@
-Flask==2.1.1
-pytube==11.0.1
+fastapi==0.109.1
+uvicorn==0.23.2
+yt-dlp==2025.9.18
+aiofiles==23.1.0
+python-multipart==0.0.6
