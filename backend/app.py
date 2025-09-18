@@ -1,53 +1,84 @@
-from flask import Flask, request, jsonify, send_file
-from pytube import YouTube
 import os
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import yt_dlp
 
-app = Flask(__name__)
+app = FastAPI()
 
-# Initialize counters
+# Enable CORS so your frontend can access the backend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # change "*" to your frontend domain in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --------------------
+# Global counters
+# --------------------
 page_views = 0
 downloads = 0
 
-@app.route('/download', methods=['POST'])
-def download_video():
-    global downloads
-    data = request.get_json()
-    url = data.get('url')
+# --------------------
+# Routes
+# --------------------
+@app.post("/download")
+async def download_video(request: Request):
+    data = await request.json()
+    url = data.get("url")
     if not url:
-        return jsonify({'error': 'No URL provided'}), 400
+        raise HTTPException(status_code=400, detail="No URL provided")
 
     try:
-        yt = YouTube(url)
-        stream = yt.streams.get_highest_resolution()
-        video_path = stream.download(filename='video.mp4')
-        downloads += 1
-        return jsonify({'video_url': video_path, 'title': yt.title})
+        # Extract info from YouTube without downloading
+        ydl_opts = {"quiet": True, "skip_download": True}
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            title = info.get("title", "video")
+            formats = info.get("formats", [])
+            # Pick best mp4 with filesize info
+            best_format = next((f for f in formats if f.get("ext") == "mp4" and f.get("filesize")), None)
+            if not best_format:
+                best_format = formats[-1]  # fallback
+            video_url = best_format.get("url")
+
+        return JSONResponse(content={"title": title, "video_url": video_url})
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.route('/counts', methods=['GET'])
-def get_counts():
-    global page_views
-    return jsonify({'pageViews': page_views, 'downloads': downloads})
+# --------------------
+# Admin / Counter Endpoints
+# --------------------
+@app.get("/counts")
+async def get_counts():
+    return {"pageViews": page_views, "downloads": downloads}
 
-@app.route('/incrementPageView', methods=['POST'])
-def increment_page_view():
+@app.post("/incrementPageView")
+async def increment_page_view():
     global page_views
     page_views += 1
-    return '', 204
+    return "", 204
 
-@app.route('/incrementDownload', methods=['POST'])
-def increment_download():
+@app.post("/incrementDownload")
+async def increment_download():
     global downloads
     downloads += 1
-    return '', 204
+    return "", 204
 
-@app.route('/resetCounts', methods=['POST'])
-def reset_counts():
+@app.post("/resetCounts")
+async def reset_counts():
     global page_views, downloads
     page_views = 0
     downloads = 0
-    return '', 204
+    return "", 204
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# --------------------
+# Start server
+# --------------------
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))  # <-- use Render’s port
+    uvicorn.run(app, host="0.0.0.0", port=port)
