@@ -1,5 +1,2 @@
-fastapi
-uvicorn
-yt-dlp
-python-multipart
-aiofiles
+Flask==2.1.1
+pytube==11.0.1
